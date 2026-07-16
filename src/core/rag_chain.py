@@ -10,7 +10,7 @@ from openai import AsyncOpenAI
 
 from src.config import settings
 from src.core.retriever import retrieve
-from src.models.schemas import Citation, QueryRequest, QueryResponse
+from src.models.schemas import QueryRequest, QueryResponse
 
 logger = logging.getLogger(__name__)
 

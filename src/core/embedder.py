@@ -1,6 +1,5 @@
 """Async embedding generation using OpenAI text-embedding-3-small."""
 
-import asyncio
 from typing import List
 from openai import AsyncOpenAI
 from src.config import settings

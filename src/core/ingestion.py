@@ -7,7 +7,6 @@ from typing import List
 
 import httpx
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from unstructured.partition.auto import partition
 
 from src.config import settings
 from src.core.embedder import embed_texts
