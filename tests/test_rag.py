@@ -3,6 +3,8 @@
 import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
 from src.models.schemas import QueryRequest, Citation
+import src.core.rag_chain
+import src.core.retriever
 
 
 @pytest.fixture
@@ -13,22 +15,21 @@ def sample_citations():
     ]
 
 
-@pytest.mark.asyncio
 async def test_answer_returns_response(sample_citations):
+    from src.core.rag_chain import answer
     req = QueryRequest(question="What is foo?", top_k=2)
     mock_answer = "Foo is a bar [source: docs/foo.md]."
 
-    with (
-        patch("src.core.rag_chain.retrieve", new_callable=AsyncMock, return_value=sample_citations),
-        patch("src.core.rag_chain._load_history", new_callable=AsyncMock, return_value=""),
-        patch("src.core.rag_chain._save_turn", new_callable=AsyncMock),
-        patch("src.core.rag_chain._openai") as mock_openai,
-    ):
-        mock_completion = MagicMock()
-        mock_completion.choices[0].message.content = mock_answer
-        mock_openai.chat.completions.create = AsyncMock(return_value=mock_completion)
+    mock_completion = MagicMock()
+    mock_completion.choices[0].message.content = mock_answer
 
-        from src.core.rag_chain import answer
+    with (
+        patch.object(src.core.rag_chain, "retrieve", new=AsyncMock(return_value=sample_citations)),
+        patch.object(src.core.rag_chain, "_load_history", new=AsyncMock(return_value="")),
+        patch.object(src.core.rag_chain, "_save_turn", new=AsyncMock()),
+        patch.object(src.core.rag_chain._openai.chat.completions, "create",
+                     new=AsyncMock(return_value=mock_completion)),
+    ):
         result = await answer(req)
 
     assert result.answer == mock_answer
@@ -36,18 +37,20 @@ async def test_answer_returns_response(sample_citations):
     assert result.latency_ms > 0
 
 
-@pytest.mark.asyncio
 async def test_retrieve_returns_citations(sample_citations):
-    with (
-        patch("src.core.retriever.embed_query", new_callable=AsyncMock, return_value=[0.1] * 1536),
-        patch("src.core.retriever.get_qdrant_client") as mock_client,
-    ):
-        mock_hit = MagicMock()
-        mock_hit.id = "chunk-1"
-        mock_hit.payload = {"doc_id": "abc", "text": "Foo is a bar.", "source": "docs/foo.md"}
-        mock_client.return_value.search.return_value = [mock_hit]
+    from src.core.retriever import retrieve
 
-        from src.core.retriever import retrieve
+    mock_hit = MagicMock()
+    mock_hit.id = "chunk-1"
+    mock_hit.payload = {"doc_id": "abc", "text": "Foo is a bar.", "source": "docs/foo.md"}
+
+    mock_qdrant = MagicMock()
+    mock_qdrant.search.return_value = [mock_hit]
+
+    with (
+        patch.object(src.core.retriever, "embed_query", new=AsyncMock(return_value=[0.1] * 1536)),
+        patch.object(src.core.retriever, "get_qdrant_client", return_value=mock_qdrant),
+    ):
         results = await retrieve("What is foo?", top_k=1)
 
     assert len(results) == 1
